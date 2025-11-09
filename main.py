@@ -3,7 +3,8 @@ import os
 import cv2  # Necesario para las banderas de binarización y morfología
 import pandas as pd
 import matplotlib.pyplot as plt
-from clases_dicom import DicomManager, Estudiolmaginologico
+from clases_dicom import DicomManager, Estudiolmaginologico}
+import numpy as np
 
 
 # Un diccionario para almacenar los objetos creados, la llave es la ruta de la carpeta y el valor será un objeto EstudioImaginologico
@@ -317,3 +318,4 @@ def aplicar_morfologia():
 
     except ValueError:
         print("[Error] Entrada inválida. Debe ser un número entero.")
+
