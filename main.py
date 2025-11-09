@@ -91,68 +91,75 @@ def cargar_nuevo_estudio():
         print(f"[Error] Ocurrió un problema al cargar el estudio: {e}")
 
 
+# --- REEMPLAZA ESTA FUNCIÓN EN main.py ---
+
 def mostrar_cortes_3d():
     """
-    Opción 2: Muestra los 3 cortes principales (Axial, Sagital, Coronal) 
-    con corrección de espaciado para que no se distorsionen.
+    Opción 2: Muestra los 3 cortes principales (T, S, C).
     """
     estudio_seleccionado = seleccionar_estudio()
     if estudio_seleccionado is None:
         return
 
-    # Obtener metadatos de espaciado
+    # 1. Obtener los metadatos de espaciado
     try:
         meta = estudio_seleccionado.manager_dicom.metadatos_primer_slice
-        pixel_spacing = np.array(meta.PixelSpacing, dtype=float)  # [dy, dx]
-        slice_thickness = float(meta.SliceThickness)              # dz
+        
+        # PixelSpacing es [spacing_filas (Y), spacing_cols (X)]
+        pixel_spacing = meta.PixelSpacing
+        
+        # SliceThickness es el espaciado (Z)
+        slice_thickness = float(meta.SliceThickness) 
+
+        # 2. Calcular los 'aspect ratios' (CORREGIDOS Y SIN TRANSPUESTA)
+        
+        # Corte Transversal (Y, X) -> Físico: (pixel_spacing[0], pixel_spacing[1])
+        aspecto_trans = float(pixel_spacing[0]) / float(pixel_spacing[1]) 
+        
+        # Corte Sagital (Z, Y) -> Físico: (slice_thickness, pixel_spacing[0])
+        # aspect = alto_fisico / ancho_fisico
+        aspecto_sag = slice_thickness / float(pixel_spacing[0])
+
+        # Corte Coronal (Z, X) -> Físico: (slice_thickness, pixel_spacing[1])
+        # aspect = alto_fisico / ancho_fisico
+        aspecto_cor = slice_thickness / float(pixel_spacing[1])
+    
     except Exception as e:
-        print(f"[Advertencia] No se pudo leer el espaciado ({e}), usando 1.0 por defecto.")
-        pixel_spacing = np.array([1.0, 1.0])
-        slice_thickness = 1.0
+        print(f"Advertencia: No se pudo leer el espaciado. Se usará 'auto'. ({e})")
+        aspecto_trans = 'auto'
+        aspecto_sag = 'auto'
+        aspecto_cor = 'auto'
 
-    # Volumen 3D original (Z, Y, X)
-    vol = estudio_seleccionado.manager_dicom.volumen_3d.astype(np.float32)
+    # Obtenemos los cortes
+    trans, sag, cor = estudio_seleccionado.manager_dicom.obtener_cortes_principales()
 
-    # --- Reescalar el volumen a voxeles isotrópicos ---
-    # Queremos que el tamaño del vóxel sea el mínimo de los tres ejes
-    target_spacing = min(pixel_spacing[0], pixel_spacing[1], slice_thickness)
+    if trans is not None:
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
+        
+        # Aplicamos los nuevos 'aspect' Y la interpolación
+        
+        ax1.imshow(trans, cmap='gray', 
+                   aspect=aspecto_trans, 
+                   interpolation='bilinear')
+        ax1.set_title("Corte Transversal (Axial)")
+        ax1.axis('off')
+        
+       
+        ax2.imshow(sag, cmap='gray', 
+                   aspect=aspecto_sag, 
+                   interpolation='bilinear') 
+        ax2.set_title("Corte Sagital")
+        ax2.axis('off')
 
-    # Calculamos factores de zoom para cada eje
-    zoom_factors = [
-        slice_thickness / target_spacing,  # eje Z
-        pixel_spacing[0] / target_spacing, # eje Y
-        pixel_spacing[1] / target_spacing  # eje X
-    ]
-
-    print(f"Reescalando volumen con factores: {zoom_factors}")
-    vol_iso = zoom(vol, zoom_factors, order=3)  # interpolación cúbica
-
-    # --- Seleccionamos cortes centrales ---
-    idx_z = vol_iso.shape[0] // 2
-    idx_y = vol_iso.shape[1] // 2
-    idx_x = vol_iso.shape[2] // 2
-
-    corte_axial = vol_iso[idx_z, :, :]
-    corte_sagital = vol_iso[:, :, idx_x]
-    corte_coronal = vol_iso[:, idx_y, :]
-
-    # --- Mostrar ---
-    fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-
-    axs[0].imshow(corte_axial, cmap='gray', aspect='equal')
-    axs[0].set_title("Corte Transversal (Axial)")
-    axs[0].axis('off')
-
-    axs[1].imshow(np.rot90(corte_sagital), cmap='gray', aspect='equal')
-    axs[1].set_title("Corte Sagital (Corregido)")
-    axs[1].axis('off')
-
-    axs[2].imshow(np.rot90(corte_coronal), cmap='gray', aspect='equal')
-    axs[2].set_title("Corte Coronal (Corregido)")
-    axs[2].axis('off')
-
-    plt.tight_layout()
-    plt.show()
+        
+        ax3.imshow(cor, cmap='gray', 
+                   aspect=aspecto_cor, 
+                   interpolation='bilinear') 
+        ax3.set_title("Corte Coronal")
+        ax3.axis('off')
+        
+        plt.tight_layout()
+        plt.show()
 
 def aplicar_zoom():
     """
