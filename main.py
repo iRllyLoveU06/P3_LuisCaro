@@ -248,3 +248,72 @@ def exportar_metadata_csv():
     
     print(f"\n¡Metadatos exportados exitosamente a '{nombre_csv}'!")
     print(df)
+    
+
+def aplicar_morfologia():
+    """
+    Opción 5: Pide tamaño de kernel y operación, y llama a transformacion_morfologica.
+    """
+    estudio_seleccionado = seleccionar_estudio()
+    if estudio_seleccionado is None:
+        return
+
+    try:
+        idx = int(input(f"Ingrese el índice del corte (0 a {estudio_seleccionado.forma[0]-1}): "))
+        if not (0 <= idx < estudio_seleccionado.forma[0]):
+            print("[Error] Índice de corte fuera de rango.")
+            return
+            
+        tam_kernel = int(input("Ingrese el tamaño del kernel (ej: 3, 5, 7): "))
+
+        print("\n--- Tipos de Operación Morfológica ---")
+        print("1. Erosión (cv2.erode)")
+        print("2. Dilatación (cv2.dilate)")
+        print("3. Apertura (cv2.morphologyEx con cv2.MORPH_OPEN)")
+        print("4. Cierre (cv2.morphologyEx con cv2.MORPH_CLOSE)")
+        
+        opcion = input("Seleccione la operación (1-4): ")
+
+        # Mapeamos la entrada a la función/parámetros de OpenCV
+        operacion_cv = None
+        if opcion == "1":
+            operacion_cv = cv2.erode
+        elif opcion == "2":
+            operacion_cv = cv2.dilate
+        elif opcion == "3":
+            # Las operaciones 'Open' y 'Close' usan una función base diferente
+            kernel = np.ones((tam_kernel, tam_kernel), np.uint8)
+            corte = estudio_seleccionado.imagen_3d[idx, :, :]
+            corte_uint8 = estudio_seleccionado._normalizar_a_uint8(corte)
+            
+            img_resultante = cv2.morphologyEx(corte_uint8, cv2.MORPH_OPEN, kernel)
+            
+            plt.imshow(img_resultante, cmap='gray')
+            plt.title("Morfología: Apertura")
+            plt.show()
+            cv2.imwrite("morf_apertura.png", img_resultante)
+            print("Imagen guardada como morf_apertura.png")
+            return # Salimos de la función
+            
+        elif opcion == "4":
+            kernel = np.ones((tam_kernel, tam_kernel), np.uint8)
+            corte = estudio_seleccionado.imagen_3d[idx, :, :]
+            corte_uint8 = estudio_seleccionado._normalizar_a_uint8(corte)
+            
+            img_resultante = cv2.morphologyEx(corte_uint8, cv2.MORPH_CLOSE, kernel)
+            
+            plt.imshow(img_resultante, cmap='gray')
+            plt.title("Morfología: Cierre")
+            plt.show()
+            cv2.imwrite("morf_cierre.png", img_resultante)
+            print("Imagen guardada como morf_cierre.png")
+            return # Salimos de la función
+        else:
+            print("[Error] Opción no válida.")
+            return
+        
+        # Llamamos al método de la clase (solo para Erosión y Dilatación)
+        estudio_seleccionado.transformacion_morfologica(idx, tam_kernel, operacion_cv)
+
+    except ValueError:
+        print("[Error] Entrada inválida. Debe ser un número entero.")
