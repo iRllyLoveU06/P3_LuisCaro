@@ -6,6 +6,7 @@ import cv2  # OpenCV para procesamiento de imagen
 import matplotlib.pyplot as plt  # Para mostrar las imágenes
 import nibabel as nib  # Para crear y guardar archivos NIFTI
 from datetime import datetime  # Para calcular la diferencia de tiempo]
+from scipy.ndimage import zoom
 
 class DicomManager:
     """
