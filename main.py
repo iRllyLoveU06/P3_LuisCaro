@@ -196,3 +196,21 @@ def aplicar_segmentacion():
     except ValueError:
         print("[Error] Entrada inválida. Debe ser un número entero.")
 
+def convertir_a_nifti():
+    """
+    Opción 6: Llama al método de conversión a NIFTI del DicomManager.
+    """
+    estudio_seleccionado = seleccionar_estudio()
+    if estudio_seleccionado is None:
+        return
+        
+    nombre_salida = input("Ingrese el nombre del archivo de salida (agregue "".nii"" o "".nii.gz""): ")
+    if not (nombre_salida.endswith(".nii") or nombre_salida.endswith(".nii.gz")):
+        print("Advertencia: El nombre de archivo no termina en .nii o .nii.gz")
+        
+    try:
+        # El método de conversión está en el DicomManager
+        estudio_seleccionado.manager_dicom.convertir_a_nifti(nombre_salida)
+    except Exception as e:
+        print(f"[Error] No se pudo convertir a NIFTI: {e}")
+        
