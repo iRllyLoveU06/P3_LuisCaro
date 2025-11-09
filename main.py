@@ -11,8 +11,8 @@ estudios_cargados = {}
 #--- definimos varias funciones para realizar el bucle y sistema mas sencillo
 
 def mostrar_menu():
-    """Imprime el menú principal en la consola."""
-    print("\n--- 🏥 Menú Principal: Procesador DICOM ---")
+    """Imprime el menú :3 """
+    print("\n--- Menú Principal: Procesador DICOM ---")
     print("1. Cargar nueva carpeta DICOM (Crear Estudio)")
     print("2. Mostrar cortes 3D (Transversal, Sagital, Coronal) de un estudio")
     print("3. Aplicar ZOOM (Recorte y Redimensión) a un corte")
@@ -53,3 +53,38 @@ def seleccionar_estudio():
     except ValueError:
         print("[Error] Entrada inválida. Debe ser un número.")
         return None
+    
+def cargar_nuevo_estudio():
+    """
+    Opción 1: Pide una ruta, crea los objetos DicomManager y
+    Estudiolmaginologico, y los almacena en el diccionario del inicio :3
+    """
+    ruta_carpeta = input("Ingrese la ruta de la carpeta con los archivos DICOM: ")
+    
+    if not os.path.isdir(ruta_carpeta):
+        print(f"[Error] La ruta '{ruta_carpeta}' no es una carpeta válida.")
+        return
+
+    print("Cargando y procesando... por favor espere.")
+    try:
+        # Creamos el DicomManager 
+        manager = DicomManager(ruta_carpeta)
+        
+        # si manager.volumen_3d será None, la reconstrucción falló 
+        if manager.volumen_3d is None:
+            print("[Error] No se pudo reconstruir el volumen 3D. Verifique los archivos.")
+            return
+            
+        # Creamos el Estudiolmaginologico
+        estudio = Estudiolmaginologico(manager)
+        
+        # almacenamos el objeto 
+        estudios_cargados[ruta_carpeta] = estudio
+        
+        print(f"\n¡Estudio cargado exitosamente!")
+        print(f"  - Modalidad: {estudio.study_modality}")
+        print(f"  - Descripción: {estudio.study_description}")
+        print(f"  - Forma 3D: {estudio.forma}")
+        
+    except Exception as e:
+        print(f"[Error] Ocurrió un problema al cargar el estudio: {e}")
