@@ -147,3 +147,52 @@ def aplicar_zoom():
         print("[Error] Entrada inválida. Todos los valores deben ser números enteros.")
     except Exception as e:
         print(f"[Error] No se pudo aplicar el zoom: {e}")
+
+
+def aplicar_segmentacion():
+    """
+    Opción 4: Pide tipo de binarización y llama a funcion_segmentacion.
+    """
+    estudio_seleccionado = seleccionar_estudio()
+    if estudio_seleccionado is None:
+        return
+        
+    try:
+        idx = int(input(f"Ingrese el índice del corte (0 a {estudio_seleccionado.forma[0]-1}): "))
+        if not (0 <= idx < estudio_seleccionado.forma[0]):
+            print("[Error] Índice de corte fuera de rango.")
+            return
+
+        print("\n--- Tipos de Binarización ---")
+        print("1. Binario (cv2.THRESH_BINARY)")
+        print("2. Binario Invertido (cv2.THRESH_BINARY_INV)")
+        print("3. Truncado (cv2.THRESH_TRUNC)")
+        print("4. A Cero (cv2.THRESH_TOZERO)")
+        print("5. A Cero Invertido (cv2.THRESH_TOZERO_INV)")
+        
+        opcion = input("Seleccione el tipo de binarización (1-5): ")
+
+        # Mapeamos la entrada del usuario a la bandera real de OpenCV
+        mapeo_binarizacion = {
+            "1": cv2.THRESH_BINARY,
+            "2": cv2.THRESH_BINARY_INV,
+            "3": cv2.THRESH_TRUNC,
+            "4": cv2.THRESH_TOZERO,
+            "5": cv2.THRESH_TOZERO_INV
+        }
+        
+        bandera_seleccionada = mapeo_binarizacion.get(opcion)
+        
+        if bandera_seleccionada is None:
+            print("[Error] Opción de binarización no válida.")
+            return
+
+        # Pedimos el umbral.
+        umbral = int(input("Ingrese el valor del umbral (0-255, ej: 127): "))
+        
+        # Llamamos al método de la clase
+        estudio_seleccionado.funcion_segmentacion(idx, bandera_seleccionada, umbral)
+        
+    except ValueError:
+        print("[Error] Entrada inválida. Debe ser un número entero.")
+
