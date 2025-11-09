@@ -23,9 +23,6 @@ def mostrar_menu():
     print("7. Exportar metadatos de estudios cargados a CSV")
     print("0. Salir")
 
-
-
-
 def seleccionar_estudio():
     """
     Función auxiliar para mostrar los estudios cargados y
@@ -90,9 +87,6 @@ def cargar_nuevo_estudio():
     except Exception as e:
         print(f"[Error] Ocurrió un problema al cargar el estudio: {e}")
 
-
-# --- REEMPLAZA ESTA FUNCIÓN EN main.py ---
-
 def mostrar_cortes_3d():
     """
     Opción 2: Muestra los 3 cortes principales (T, S, C).
@@ -105,38 +99,28 @@ def mostrar_cortes_3d():
     try:
         meta = estudio_seleccionado.manager_dicom.metadatos_primer_slice
         
-        # PixelSpacing es [spacing_filas (Y), spacing_cols (X)]
         pixel_spacing = meta.PixelSpacing
-        
-        # SliceThickness es el espaciado (Z)
+
         slice_thickness = float(meta.SliceThickness) 
-
-        # 2. Calcular los 'aspect ratios' (CORREGIDOS Y SIN TRANSPUESTA)
-        
-        # Corte Transversal (Y, X) -> Físico: (pixel_spacing[0], pixel_spacing[1])
         aspecto_trans = float(pixel_spacing[0]) / float(pixel_spacing[1]) 
-        
-        # Corte Sagital (Z, Y) -> Físico: (slice_thickness, pixel_spacing[0])
-        # aspect = alto_fisico / ancho_fisico
-        aspecto_sag = slice_thickness / float(pixel_spacing[0])
 
-        # Corte Coronal (Z, X) -> Físico: (slice_thickness, pixel_spacing[1])
-        # aspect = alto_fisico / ancho_fisico
+        aspecto_sag_T = float(pixel_spacing[0]) / slice_thickness
+
         aspecto_cor = slice_thickness / float(pixel_spacing[1])
     
     except Exception as e:
         print(f"Advertencia: No se pudo leer el espaciado. Se usará 'auto'. ({e})")
         aspecto_trans = 'auto'
-        aspecto_sag = 'auto'
+        aspecto_sag_T = 'auto'
         aspecto_cor = 'auto'
 
-    # Obtenemos los cortes
+    #  Obtenemos los cortes
     trans, sag, cor = estudio_seleccionado.manager_dicom.obtener_cortes_principales()
 
     if trans is not None:
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
         
-        # Aplicamos los nuevos 'aspect' Y la interpolación
+        #  Aplicamos los nuevos 'aspect' Y la interpolación
         
         ax1.imshow(trans, cmap='gray', 
                    aspect=aspecto_trans, 
@@ -144,14 +128,13 @@ def mostrar_cortes_3d():
         ax1.set_title("Corte Transversal (Axial)")
         ax1.axis('off')
         
-       
-        ax2.imshow(sag, cmap='gray', 
-                   aspect=aspecto_sag, 
+        ax2.imshow(sag.T, cmap='gray', 
+                   aspect=aspecto_sag_T, 
                    interpolation='bilinear') 
         ax2.set_title("Corte Sagital")
         ax2.axis('off')
 
-        
+       
         ax3.imshow(cor, cmap='gray', 
                    aspect=aspecto_cor, 
                    interpolation='bilinear') 
@@ -160,36 +143,6 @@ def mostrar_cortes_3d():
         
         plt.tight_layout()
         plt.show()
-
-def aplicar_zoom():
-    """
-    Opción 3: Pide parámetros y llama al metodo_zoom.
-    """
-    estudio_seleccionado = seleccionar_estudio()
-    if estudio_seleccionado is None:
-        return
-
-    print(f"El volumen tiene {estudio_seleccionado.forma[0]} cortes (índice 0 a {estudio_seleccionado.forma[0]-1})")
-    try:
-        idx = int(input("Ingrese el índice del corte a procesar: "))
-        if not (0 <= idx < estudio_seleccionado.forma[0]):
-            print("[Error] Índice de corte fuera de rango.")
-            return
-            
-        print(f"El corte tiene dimensiones: {estudio_seleccionado.forma[1]} Alto x {estudio_seleccionado.forma[2]} Ancho")
-        x = int(input("Ingrese coordenada X de inicio (esquina sup-izq): "))
-        y = int(input("Ingrese coordenada Y de inicio (esquina sup-izq): "))
-        w = int(input("Ingrese Ancho (W) del recorte: "))
-        h = int(input("Ingrese Alto (H) del recorte: "))
-        nombre = input("Nombre del archivo de salida (ej: zoom.png): ")
-
-        estudio_seleccionado.metodo_zoom(idx, x, y, w, h, nombre)
-
-    except ValueError:
-        print("[Error] Entrada inválida. Todos los valores deben ser números enteros.")
-    except Exception as e:
-        print(f"[Error] No se pudo aplicar el zoom: {e}")
-
 
 def aplicar_segmentacion():
     """
