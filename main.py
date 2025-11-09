@@ -119,3 +119,31 @@ def mostrar_cortes_3d():
         plt.tight_layout()
         plt.show()
 
+def aplicar_zoom():
+    """
+    Opción 3: Pide parámetros y llama al metodo_zoom.
+    """
+    estudio_seleccionado = seleccionar_estudio()
+    if estudio_seleccionado is None:
+        return
+
+    print(f"El volumen tiene {estudio_seleccionado.forma[0]} cortes (índice 0 a {estudio_seleccionado.forma[0]-1})")
+    try:
+        idx = int(input("Ingrese el índice del corte a procesar: "))
+        if not (0 <= idx < estudio_seleccionado.forma[0]):
+            print("[Error] Índice de corte fuera de rango.")
+            return
+            
+        print(f"El corte tiene dimensiones: {estudio_seleccionado.forma[1]} Alto x {estudio_seleccionado.forma[2]} Ancho")
+        x = int(input("Ingrese coordenada X de inicio (esquina sup-izq): "))
+        y = int(input("Ingrese coordenada Y de inicio (esquina sup-izq): "))
+        w = int(input("Ingrese Ancho (W) del recorte: "))
+        h = int(input("Ingrese Alto (H) del recorte: "))
+        nombre = input("Nombre del archivo de salida (ej: zoom.png): ")
+
+        estudio_seleccionado.metodo_zoom(idx, x, y, w, h, nombre)
+
+    except ValueError:
+        print("[Error] Entrada inválida. Todos los valores deben ser números enteros.")
+    except Exception as e:
+        print(f"[Error] No se pudo aplicar el zoom: {e}")
