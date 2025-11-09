@@ -3,7 +3,7 @@ import os
 import cv2  # Necesario para las banderas de binarización y morfología
 import pandas as pd
 import matplotlib.pyplot as plt
-from clases_dicom import DicomManager, Estudiolmaginologico}
+from clases_dicom import DicomManager, Estudiolmaginologico
 import numpy as np
 
 
@@ -319,3 +319,42 @@ def aplicar_morfologia():
     except ValueError:
         print("[Error] Entrada inválida. Debe ser un número entero.")
 
+#---  Bucle Principal de veritas ---
+def main():
+    """
+    Función principal que ejecuta el bucle del menú.
+    """
+    while True:
+        mostrar_menu()
+        opcion = input("Seleccione una opción: ")
+
+        if opcion == '1':
+            cargar_nuevo_estudio()
+        
+        elif opcion == '2':
+            mostrar_cortes_3d()
+            
+        elif opcion == '3':
+            aplicar_zoom()
+
+        elif opcion == '4':
+            aplicar_segmentacion()
+
+        elif opcion == '5':
+            aplicar_morfologia()
+
+        elif opcion == '6':
+            convertir_a_nifti()
+            
+        elif opcion == '7':
+            exportar_metadata_csv()
+
+        elif opcion == '0':
+            print("Saliendo del programa...")
+            break
+            
+        else:
+            print("[Error] Opción no válida. Por favor, intente de nuevo.")
+
+if __name__ == "__main__":
+    main()
