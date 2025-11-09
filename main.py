@@ -213,4 +213,38 @@ def convertir_a_nifti():
         estudio_seleccionado.manager_dicom.convertir_a_nifti(nombre_salida)
     except Exception as e:
         print(f"[Error] No se pudo convertir a NIFTI: {e}")
-        
+
+def exportar_metadata_csv():
+    """
+    Opción 7: Extrae metadatos de TODOS los estudios cargados
+    y los guarda en un archivo CSV.
+    """
+    if not estudios_cargados:
+        print("\n[Error] No hay estudios cargados para exportar.")
+        return
+
+    lista_de_estudios_data = []
+    
+    # Iteramos sobre el diccionario de estudios cargados
+    for ruta, estudio in estudios_cargados.items():
+        datos_fila = {
+            "Ruta Carpeta": ruta,
+            "Modalidad": estudio.study_modality,
+            "Fecha Estudio": estudio.study_date,
+            "Hora Estudio": estudio.study_time,
+            "Hora Serie": estudio.series_time,
+            "Duracion Estudio": estudio.tiempo_duracion_estudio,
+            "Descripcion": estudio.study_description,
+            "Forma 3D": str(estudio.forma)
+        }
+        lista_de_estudios_data.append(datos_fila)
+
+    # Creamos el DataFrame de Pandas
+    df = pd.DataFrame(lista_de_estudios_data)
+    
+    # Guardamos en CSV
+    nombre_csv = "metadata_estudios.csv"
+    df.to_csv(nombre_csv, index=False)
+    
+    print(f"\n¡Metadatos exportados exitosamente a '{nombre_csv}'!")
+    print(df)
