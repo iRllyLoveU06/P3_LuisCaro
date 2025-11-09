@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt  # Para mostrar las imágenes
 import nibabel as nib  # Para crear y guardar archivos NIFTI
 from datetime import datetime  # Para calcular la diferencia de tiempo]
 from scipy.ndimage import zoom
+import pandas as pd
+
 
 class DicomManager:
     """
@@ -18,6 +20,8 @@ class DicomManager:
         self.slices_dicom = []  # Lista para guardar los slices leídos
         self.volumen_3d = None  # Matriz 3D que se reconstruirá
         self.metadatos_primer_slice = None # Guardamos la metadata del primer slice
+        self._cargar_archivos_dicom()
+        self._reconstruir_volumen_3d()
 
         # Llamamos a los métodos de carga y reconstrucción al inicializar
         self._cargar_archivos_dicom()
@@ -102,10 +106,10 @@ class DicomManager:
         corte_transversal = self.volumen_3d[idx_transversal, :, :]
         
         # Corte Coronal "de frente"
-        corte_coronal = self.volumen_3d[:, idx_coronal, :]
+        corte_coronal = self.volumen_3d[:, idx_coronal, :] #Z, X
         
         # Corte Sagital "de lado"
-        corte_sagital = self.volumen_3d[:, :, idx_sagital]
+        corte_sagital = self.volumen_3d[:, :, idx_sagital] #Z, Y
 
         return corte_transversal, corte_sagital, corte_coronal
 
@@ -233,61 +237,56 @@ class Estudiolmaginologico:
         
         return img_uint8
 
-    def metodo_zoom(self, indice_corte, x, y, w, h, nombre_archivo_salida):
-        """
-        Recorta, redimensiona y dibuja un cuadro sobre un corte.
-        """
 
-        # Obtenemos el corte original (slice) desde el volumen 3D
+    def metodo_zoom(self, indice_corte, x, y, w, h, nombre_archivo_recorte, nombre_archivo_plot):
+        """
+        MODIFICADO: Se ajusta la posición del texto de las dimensiones
+        para que aparezca DENTRO del cuadro, cumpliendo el requisito.
+        """
+        #  Obtener y normalizar
         corte_original = self.imagen_3d[indice_corte, :, :]
-
-        # Normalizamos a uint8 
         corte_norm_uint8 = self._normalizar_a_uint8(corte_original)
-
-        # Convertimos a BGR para poder dibujar en color 
-        # (OpenCV espera 3 canales de color para dibujar en color)
+        
+        # Convertir a BGR para dibujar a color
         corte_bgr = cv2.cvtColor(corte_norm_uint8, cv2.COLOR_GRAY2BGR)
 
-        # Dibujar el cuadro (ROI - Región de Interés) 
+        # 3. Dibujar el cuadro (ROI)
         pt1 = (x, y) # Coordenada superior izquierda
         pt2 = (x + w, y + h) # Coordenada inferior derecha
         color_verde = (0, 255, 0)
         grosor = 2
         cv2.rectangle(corte_bgr, pt1, pt2, color_verde, grosor)
 
-        # Añadir texto con dimensiones en milímetros (mm) 
+        #  Añadir texto con dimensiones en milímetros (mm)
         try:
-            # Obtenemos el espaciado de píxeles (mm)
             meta = self.manager_dicom.slices_dicom[indice_corte]
-            pixel_spacing = meta.PixelSpacing # Es una lista [spacing_filas, spacing_cols]
+            pixel_spacing = meta.PixelSpacing # Es [spacing_filas (Y), spacing_cols (X)]
             
             dim_mm_w = w * float(pixel_spacing[1]) # Ancho (columnas)
             dim_mm_h = h * float(pixel_spacing[0]) # Alto (filas)
             
             texto = f"{dim_mm_w:.1f} x {dim_mm_h:.1f} mm"
+        
+            pos_texto = (x + 5, y + 20) 
             
-            # Coordenadas para el texto (un poco arriba del cuadro)
-            pos_texto = (x, y - 10)
             cv2.putText(corte_bgr, texto, pos_texto, 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_verde, 1)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_verde, 1, cv2.LINE_AA)
         except Exception as e:
             print(f"No se pudo añadir texto de dimensiones: {e}")
 
-        # Recortar la región de la imagen normalizada (no de la BGR)
+        #Recortar la región de la imagen normalizada (uint8)
         region_recortada = corte_norm_uint8[y:y+h, x:x+w]
 
-        # Redimensionar (resize) el recorte 
-        # Vamos a duplicar su tamaño como ejemplo de redimensionamiento
-        nuevo_ancho = w * 2
-        nueva_altura = h * 2
-        recorte_redimensionado = cv2.resize(region_recortada, (nuevo_ancho, nueva_altura), 
+        # Redimensionar (resize) el recorte
+        # (Usamos w*2 y h*2 como ejemplo de redimensión)
+        recorte_redimensionado = cv2.resize(region_recortada, (w * 2, h * 2), 
                                           interpolation=cv2.INTER_LINEAR)
 
-        # Mostrar en dos subplots 
+        # Mostrar en dos subplots
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
         
-        ax1.imshow(corte_bgr)
-        ax1.set_title("Imagen Original con Cuadro (ROI)")
+        ax1.imshow(cv2.cvtColor(corte_bgr, cv2.COLOR_BGR2RGB)) # Convertir a RGB para Matplotlib
+        ax1.set_title("Original con ROI y Texto")
         ax1.axis('off')
         
         ax2.imshow(recorte_redimensionado, cmap='gray')
@@ -297,11 +296,13 @@ class Estudiolmaginologico:
         plt.tight_layout()
         plt.show()
 
-        # Guardar la imagen recortada
-        cv2.imwrite(nombre_archivo_salida, recorte_redimensionado)
-        print(f"Imagen recortada guardada como: {nombre_archivo_salida}")
+        # Guardar la imagen recortada y el plot
+        cv2.imwrite(nombre_archivo_recorte, recorte_redimensionado)
+        fig.savefig(nombre_archivo_plot)
+        print(f"Imagen recortada guardada como: {nombre_archivo_recorte}")
+        print(f"Plot de comparación guardado como: {nombre_archivo_plot}")
 
-    def funcion_segmentacion(self, indice_corte, tipo_binarizacion_cv2, umbral=127):
+    def funcion_segmentacion(self, indice_corte, tipo_binarizacion_cv2, umbral, nombre_archivo_salida):
         """
         Aplica binarización (segmentación simple) a un corte.
 
@@ -327,27 +328,32 @@ class Estudiolmaginologico:
         plt.axis('off')
         plt.show()
 
+        #guardamos
+        
+        cv2.imwrite(nombre_archivo_salida, img_binarizada)
+        fig.savefig(f"plot_{nombre_archivo_salida}")
+        print(f"Imagen binarizada guardada como: {nombre_archivo_salida}")
+        print(f"Plot de binarización guardado como: plot_{nombre_archivo_salida}")
+
         return img_binarizada
 
-    def transformacion_morfologica(self, indice_corte, tamano_kernel, operacion_cv2):
+    def transformacion_morfologica(self, indice_corte, tamano_kernel, operacion_cv2_flag, nombre_archivo_salida):
         """
         Aplica una transformación morfológica (Erosión, Dilatación, etc.)
         'operacion_cv2' debe ser una función de OpenCV,
         ej: cv2.erode, cv2.dilate
         """
         # Obtenemos y normalizamos el corte 
-        corte = self.imagen_3d[indice_corte, :, :]
-        corte_uint8 = self._normalizar_a_uint8(corte)
-
-        # Creamos el 'kernel' 
-        # Es una matriz cuadrada de 'unos' del tamaño dado
+        corte_uint8 = self._normalizar_a_uint8(self.imagen_3d[indice_corte, :, :])
+        #el fokin kernel
         kernel = np.ones((tamano_kernel, tamano_kernel), np.uint8)
+
 
         # Aplicamos la operación morfológica
         # La 'operacion_cv2' se pasa como un argumento de función
         # ej: operacion_cv2 = cv2.erode
         try:
-            img_resultante = operacion_cv2(corte_uint8, kernel, iterations=1)
+            img_resultante = cv2.morphologyEx(corte_uint8, operacion_cv2_flag, kernel)
             
             # Mostramos y guardamos la imagen resultante 
             plt.figure(figsize=(8, 8))
@@ -357,9 +363,320 @@ class Estudiolmaginologico:
             plt.show()
             
             # Guardamos la imagen
-            nombre_archivo = f"morfologia_k{tamano_kernel}.png"
-            cv2.imwrite(nombre_archivo, img_resultante)
-            print(f"Imagen morfológica guardada como: {nombre_archivo}")
+            cv2.imwrite(nombre_archivo_salida, img_resultante)
+            fig.savefig(f"plot_{nombre_archivo_salida}")
+            print(f"Imagen morfológica guardada como: {nombre_archivo_salida}")
+            print(f"Plot morfológico guardado como: plot_{nombre_archivo_salida}")
 
         except Exception as e:
             print(f"Error al aplicar la operación morfológica: {e}")
+
+
+
+class SistemaGestionDICOM:
+    """
+    Esta clase encapsula toda la lógica de la aplicación (el menú)
+    y gestiona el estado (los estudios cargados).
+    """
+    
+    def __init__(self):
+        """
+        Constructor. Inicializa el diccionario que almacenará
+        los objetos Estudiolmaginologico.
+        """
+        self.estudios_cargados = {} # Reemplaza la variable global
+
+    def mostrar_menu(self):
+        print("\n" + "="*40)
+        print("   🏥 Sistema de Gestión DICOM (POO) 🏥")
+        print("="*40)
+        print("1. Cargar nueva carpeta DICOM (Crear Estudio)")
+        print("2. Mostrar cortes 3D (Transversal, Sagital, Coronal) de un estudio")
+        print("3. Aplicar ZOOM (Recorte y Redimensión) a un corte")
+        print("4. Aplicar Segmentación (Binarización) a un corte")
+        print("5. Aplicar Transformación Morfológica a un corte")
+        print("6. Convertir estudio DICOM a NIFTI")
+        print("7. Exportar metadatos de estudios cargados a CSV")
+        print("0. Salir")
+        print("-"*40)
+
+    def seleccionar_estudio(self):
+        """
+        Método auxiliar para mostrar los estudios cargados y
+        permitir al usuario seleccionar uno para trabajar.
+        """
+        if not self.estudios_cargados:
+            print("\n[Error] No hay estudios cargados. Por favor, cargue un estudio primero (Opción 1).")
+            return None
+
+        print("\n--- 📚 Estudios Cargados ---")
+        lista_estudios = list(self.estudios_cargados.keys())
+        
+        for i, ruta in enumerate(lista_estudios):
+            print(f"  [{i+1}] {ruta}")
+        
+        try:
+            opcion = int(input("Seleccione el número del estudio: "))
+            if 1 <= opcion <= len(lista_estudios):
+                ruta_seleccionada = lista_estudios[opcion - 1]
+                return self.estudios_cargados[ruta_seleccionada]
+            else:
+                print("[Error] Selección fuera de rango.")
+                return None
+        except ValueError:
+            print("[Error] Entrada inválida. Debe ser un número.")
+            return None
+
+    def cargar_nuevo_estudio(self):
+        """
+        Opción 1: Pide una ruta, crea los objetos DicomManager y
+        Estudiolmaginologico, y los almacena en 'self.estudios_cargados'.
+        """
+        ruta_carpeta = input("Ingrese la ruta de la carpeta con los archivos DICOM: ")
+        
+        if not os.path.isdir(ruta_carpeta):
+            print(f"[Error] La ruta '{ruta_carpeta}' no es una carpeta válida.")
+            return
+
+        print("Cargando y procesando... por favor espere.")
+        try:
+            manager = DicomManager(ruta_carpeta)
+            if manager.volumen_3d is None:
+                print("[Error] No se pudo reconstruir el volumen 3D. Verifique los archivos.")
+                return
+            
+            estudio = Estudiolmaginologico(manager)
+            self.estudios_cargados[ruta_carpeta] = estudio # Almacena en el atributo de clase
+            
+            print(f"\n¡Estudio cargado exitosamente!")
+            print(f"  - Modalidad: {estudio.study_modality}")
+            print(f"  - Descripción: {estudio.study_description}")
+            print(f"  - Forma 3D: {estudio.forma}")
+            
+        except Exception as e:
+            print(f"[Error] Ocurrió un problema al cargar el estudio: {e}")
+
+    def mostrar_cortes_3d(self):
+        """
+        Opción 2: Muestra y guarda los 3 cortes principales (T, S, C).
+        """
+        estudio_seleccionado = self.seleccionar_estudio()
+        if estudio_seleccionado is None:
+            return
+
+        # 1. Obtener metadatos de espaciado
+        try:
+            meta = estudio_seleccionado.manager_dicom.metadatos_primer_slice
+            pixel_spacing = meta.PixelSpacing
+            slice_thickness = float(meta.SliceThickness) 
+            
+            aspecto_trans = float(pixel_spacing[0]) / float(pixel_spacing[1]) 
+            aspecto_sag_T = float(pixel_spacing[0]) / slice_thickness
+            aspecto_cor = slice_thickness / float(pixel_spacing[1])
+        
+        except Exception as e:
+            print(f"Advertencia: No se pudo leer el espaciado. Se usará 'auto'. ({e})")
+            aspecto_trans = 'auto'; aspecto_sag_T = 'auto'; aspecto_cor = 'auto'
+        
+        # 2. Obtenemos los cortes
+        trans, sag, cor = estudio_seleccionado.manager_dicom.obtener_cortes_principales()
+
+        if trans is not None:
+            fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6))
+            
+            ax1.imshow(trans, cmap='gray', aspect=aspecto_trans, interpolation='bilinear')
+            ax1.set_title("Corte Transversal (Axial)"); ax1.axis('off')
+            
+            ax2.imshow(sag.T, cmap='gray', aspect=aspecto_sag_T, interpolation='bilinear') 
+            ax2.set_title("Corte Sagital"); ax2.axis('off')
+
+            ax3.imshow(cor, cmap='gray', aspect=aspecto_cor, interpolation='bilinear') 
+            ax3.set_title("Corte Coronal"); ax3.axis('off')
+            
+            plt.tight_layout()
+            plt.show()
+
+            # --- NUEVA FUNCIÓN DE GUARDADO ---
+            try:
+                nombre_salida = input("Ingrese nombre para guardar el plot (ej: cortes_3d.png): ")
+                fig.savefig(nombre_salida)
+                print(f"Plot de cortes 3D guardado como: {nombre_salida}")
+            except Exception as e:
+                print(f"No se pudo guardar el plot: {e}")
+
+    def aplicar_zoom(self):
+        """
+        Opción 3: Pide parámetros y llama al metodo_zoom.
+        """
+        estudio_seleccionado = self.seleccionar_estudio()
+        if estudio_seleccionado is None:
+            return
+
+        try:
+            print(f"El volumen tiene {estudio_seleccionado.forma[0]} cortes (índice 0 a {estudio_seleccionado.forma[0]-1})")
+            idx = int(input("Ingrese el índice del corte a procesar: "))
+            if not (0 <= idx < estudio_seleccionado.forma[0]):
+                print("[Error] Índice de corte fuera de rango."); return
+                
+            print(f"El corte tiene dimensiones: {estudio_seleccionado.forma[1]} Alto x {estudio_seleccionado.forma[2]} Ancho")
+            x = int(input("Ingrese coordenada X de inicio: ")); y = int(input("Ingrese coordenada Y de inicio: "))
+            w = int(input("Ingrese Ancho (W) del recorte: ")); h = int(input("Ingrese Alto (H) del recorte: "))
+            
+            # --- NUEVA FUNCIÓN DE GUARDADO ---
+            nombre_recorte = input("Nombre del archivo para la imagen recortada (ej: zoom.png): ")
+            nombre_plot = input("Nombre del archivo para el plot de comparación (ej: comparacion_zoom.png): ")
+
+            estudio_seleccionado.metodo_zoom(idx, x, y, w, h, nombre_recorte, nombre_plot)
+
+        except ValueError:
+            print("[Error] Entrada inválida. Todos los valores deben ser números enteros.")
+        except Exception as e:
+            print(f"[Error] No se pudo aplicar el zoom: {e}")
+
+    def aplicar_segmentacion(self):
+        """
+        Opción 4: Pide tipo de binarización y llama a funcion_segmentacion.
+        """
+        estudio_seleccionado = self.seleccionar_estudio()
+        if estudio_seleccionado is None:
+            return
+            
+        try:
+            idx = int(input(f"Ingrese el índice del corte (0 a {estudio_seleccionado.forma[0]-1}): "))
+            if not (0 <= idx < estudio_seleccionado.forma[0]):
+                print("[Error] Índice de corte fuera de rango."); return
+
+            print("\n--- Tipos de Binarización ---")
+            print("1. Binario (cv2.THRESH_BINARY)"); print("2. Binario Invertido (cv2.THRESH_BINARY_INV)")
+            print("3. Truncado (cv2.THRESH_TRUNC)"); print("4. A Cero (cv2.THRESH_TOZERO)")
+            print("5. A Cero Invertido (cv2.THRESH_TOZERO_INV)")
+            
+            opcion = input("Seleccione el tipo de binarización (1-5): ")
+
+            mapeo_binarizacion = {
+                "1": cv2.THRESH_BINARY, "2": cv2.THRESH_BINARY_INV, "3": cv2.THRESH_TRUNC,
+                "4": cv2.THRESH_TOZERO, "5": cv2.THRESH_TOZERO_INV
+            }
+            bandera_seleccionada = mapeo_binarizacion.get(opcion)
+            
+            if bandera_seleccionada is None:
+                print("[Error] Opción de binarización no válida."); return
+
+            umbral = int(input("Ingrese el valor del umbral (0-255, ej: 127): "))
+            
+            # --- NUEVA FUNCIÓN DE GUARDADO ---
+            nombre_salida = input("Nombre del archivo para guardar la imagen segmentada (ej: binaria.png): ")
+            
+            estudio_seleccionado.funcion_segmentacion(idx, bandera_seleccionada, umbral, nombre_salida)
+            
+        except ValueError:
+            print("[Error] Entrada inválida. Debe ser un número entero.")
+
+    def aplicar_morfologia(self):
+        """
+        Opción 5: Pide tamaño de kernel y operación, y llama a la
+        función morfológica correspondiente.
+        """
+        estudio_seleccionado = self.seleccionar_estudio()
+        if estudio_seleccionado is None:
+            return
+
+        try:
+            idx = int(input(f"Ingrese el índice del corte (0 a {estudio_seleccionado.forma[0]-1}): "))
+            if not (0 <= idx < estudio_seleccionado.forma[0]):
+                print("[Error] Índice de corte fuera de rango."); return
+                
+            tam_kernel = int(input("Ingrese el tamaño del kernel (ej: 3, 5, 7): "))
+
+            print("\n--- Tipos de Operación Morfológica ---")
+            print("1. Erosión"); print("2. Dilatación"); print("3. Apertura"); print("4. Cierre")
+            
+            opcion = input("Seleccione la operación (1-4): ")
+            
+            # --- NUEVA FUNCIÓN DE GUARDADO ---
+            nombre_salida = input("Nombre del archivo para guardar la imagen morfológica (ej: erosion.png): ")
+            
+            if opcion == "1":
+                estudio_seleccionado.transformacion_morfologica(idx, tam_kernel, cv2.erode, nombre_salida)
+            elif opcion == "2":
+                estudio_seleccionado.transformacion_morfologica(idx, tam_kernel, cv2.dilate, nombre_salida)
+            elif opcion == "3":
+                estudio_seleccionado.transformacion_morfologica_ex(idx, tam_kernel, cv2.MORPH_OPEN, nombre_salida)
+            elif opcion == "4":
+                estudio_seleccionado.transformacion_morfologica_ex(idx, tam_kernel, cv2.MORPH_CLOSE, nombre_salida)
+            else:
+                print("[Error] Opción no válida.")
+                
+        except ValueError:
+            print("[Error] Entrada inválida. Debe ser un número entero.")
+            
+    def convertir_a_nifti(self):
+        """
+        Opción 6: Llama al método de conversión a NIFTI del DicomManager.
+        """
+        estudio_seleccionado = self.seleccionar_estudio()
+        if estudio_seleccionado is None:
+            return
+            
+        nombre_salida = input("Ingrese el nombre del archivo de salida (ej: mi_estudio.nii.gz): ")
+        if not (nombre_salida.endswith(".nii") or nombre_salida.endswith(".nii.gz")):
+            print("Advertencia: Se recomienda usar extensión .nii o .nii.gz")
+            
+        try:
+            estudio_seleccionado.manager_dicom.convertir_a_nifti(nombre_salida)
+        except Exception as e:
+            print(f"[Error] No se pudo convertir a NIFTI: {e}")
+
+    def exportar_metadata_csv(self):
+        """
+        Opción 7: Extrae metadatos de TODOS los estudios cargados
+        y los guarda en un archivo CSV.
+        """
+        if not self.estudios_cargados:
+            print("\n[Error] No hay estudios cargados para exportar.")
+            return
+
+        lista_de_estudios_data = []
+        for ruta, estudio in self.estudios_cargados.items():
+            datos_fila = {
+                "Ruta Carpeta": ruta, "Modalidad": estudio.study_modality,
+                "Fecha Estudio": estudio.study_date, "Hora Estudio": estudio.study_time,
+                "Hora Serie": estudio.series_time, "Duracion Estudio": estudio.tiempo_duracion_estudio,
+                "Descripcion": estudio.study_description, "Forma 3D": str(estudio.forma)
+            }
+            lista_de_estudios_data.append(datos_fila)
+
+        df = pd.DataFrame(lista_de_estudios_data)
+        nombre_csv = "metadata_estudios.csv"
+        df.to_csv(nombre_csv, index=False)
+        
+        print(f"\n¡Metadatos exportados exitosamente a '{nombre_csv}'!")
+        print(df)
+
+    def run(self):
+        """
+        Función principal que ejecuta el bucle del menú.
+        """
+        while True:
+            self.mostrar_menu()
+            opcion = input("Seleccione una opción: ")
+
+            if opcion == '1':
+                self.cargar_nuevo_estudio()
+            elif opcion == '2':
+                self.mostrar_cortes_3d()
+            elif opcion == '3':
+                self.aplicar_zoom()
+            elif opcion == '4':
+                self.aplicar_segmentacion()
+            elif opcion == '5':
+                self.aplicar_morfologia()
+            elif opcion == '6':
+                self.convertir_a_nifti()
+            elif opcion == '7':
+                self.exportar_metadata_csv()
+            elif opcion == '0':
+                print("Saliendo del programa...")
+                break
+            else:
+                print("[Error] Opción no válida. Por favor, intente de nuevo.")
