@@ -4,7 +4,7 @@ import pydicom  # Para leer los archivos DICOM
 import numpy as np  # Para el manejo de arreglos 
 import cv2  # OpenCV para procesamiento de imagen
 import matplotlib.pyplot as plt  # Para mostrar las imágenes
-import nibabel as nib  # Para crear y guardar archivos NIFTI
+import nibabel as nib # Para crear y guardar archivos NIFTI
 from datetime import datetime  # Para calcular la diferencia de tiempo]
 from scipy.ndimage import zoom
 import pandas as pd
@@ -20,8 +20,6 @@ class DicomManager:
         self.slices_dicom = []  # Lista para guardar los slices leídos
         self.volumen_3d = None  # Matriz 3D que se reconstruirá
         self.metadatos_primer_slice = None # Guardamos la metadata del primer slice
-        self._cargar_archivos_dicom()
-        self._reconstruir_volumen_3d()
 
         # Llamamos a los métodos de carga y reconstrucción al inicializar
         self._cargar_archivos_dicom()
@@ -243,101 +241,157 @@ class Estudiolmaginologico:
         MODIFICADO: Se ajusta la posición del texto de las dimensiones
         para que aparezca DENTRO del cuadro, cumpliendo el requisito.
         """
-        #  Obtener y normalizar
-        corte_original = self.imagen_3d[indice_corte, :, :]
-        corte_norm_uint8 = self._normalizar_a_uint8(corte_original)
-        
-        # Convertir a BGR para dibujar a color
-        corte_bgr = cv2.cvtColor(corte_norm_uint8, cv2.COLOR_GRAY2BGR)
-
-        # 3. Dibujar el cuadro (ROI)
-        pt1 = (x, y) # Coordenada superior izquierda
-        pt2 = (x + w, y + h) # Coordenada inferior derecha
-        color_verde = (0, 255, 0)
-        grosor = 2
-        cv2.rectangle(corte_bgr, pt1, pt2, color_verde, grosor)
-
-        #  Añadir texto con dimensiones en milímetros (mm)
         try:
-            meta = self.manager_dicom.slices_dicom[indice_corte]
-            pixel_spacing = meta.PixelSpacing # Es [spacing_filas (Y), spacing_cols (X)]
+            #  Obtener y normalizar
+            corte_original = self.imagen_3d[indice_corte, :, :]
+            corte_norm_uint8 = self._normalizar_a_uint8(corte_original)
             
-            dim_mm_w = w * float(pixel_spacing[1]) # Ancho (columnas)
-            dim_mm_h = h * float(pixel_spacing[0]) # Alto (filas)
+            # Convertir a BGR para dibujar a color
+            corte_bgr = cv2.cvtColor(corte_norm_uint8, cv2.COLOR_GRAY2BGR)
+
+            # 3. Dibujar el cuadro (ROI)
+            pt1 = (x, y) # Coordenada superior izquierda
+            pt2 = (x + w, y + h) # Coordenada inferior derecha
+            color_verde = (0, 255, 0)
+            grosor = 2
+            cv2.rectangle(corte_bgr, pt1, pt2, color_verde, grosor)
+
+            #  Añadir texto con dimensiones en milímetros (mm)
+            try:
+                meta = self.manager_dicom.slices_dicom[indice_corte]
+                pixel_spacing = meta.PixelSpacing # Es [spacing_filas (Y), spacing_cols (X)]
+                
+                dim_mm_w = w * float(pixel_spacing[1]) # Ancho (columnas)
+                dim_mm_h = h * float(pixel_spacing[0]) # Alto (filas)
+                
+                texto = f"{dim_mm_w:.1f} x {dim_mm_h:.1f} mm"
+          
+                pos_texto = (x + 5, y + 20) 
+                
+                cv2.putText(corte_bgr, texto, pos_texto, 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_verde, 1, cv2.LINE_AA)
+            except Exception as e:
+                print(f"No se pudo añadir texto de dimensiones: {e}")
+
+            #Recortar la región de la imagen normalizada (uint8)
+            region_recortada = corte_norm_uint8[y:y+h, x:x+w]
+
+            # Redimensionar (resize) el recorte
+            # (Usamos w*2 y h*2 como ejemplo de redimensión)
+            recorte_redimensionado = cv2.resize(region_recortada, (w * 2, h * 2), 
+                                                  interpolation=cv2.INTER_LINEAR)
+
+            # Mostrar en dos subplots
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
             
-            texto = f"{dim_mm_w:.1f} x {dim_mm_h:.1f} mm"
+            ax1.imshow(cv2.cvtColor(corte_bgr, cv2.COLOR_BGR2RGB)) # Convertir a RGB para Matplotlib
+            ax1.set_title("Original con ROI y Texto")
+            ax1.axis('off')
+            
+            ax2.imshow(recorte_redimensionado, cmap='gray')
+            ax2.set_title("Región Recortada y Redimensionada (Zoom)")
+            ax2.axis('off')
+            
+            plt.tight_layout()
+
+            # Guardar la imagen recortada y el plot
+            success = cv2.imwrite(nombre_archivo_recorte, recorte_redimensionado)
+            fig.savefig(nombre_archivo_plot)
+            
+            if success:
+                print(f"Imagen recortada guardada como: {nombre_archivo_recorte}")
+            else:
+                print(f"¡ERROR! No se pudo guardar la imagen recortada en: {nombre_archivo_recorte}")
+            print(f"Plot de comparación guardado como: {nombre_archivo_plot}")
+            
+            plt.show()
         
-            pos_texto = (x + 5, y + 20) 
-            
-            cv2.putText(corte_bgr, texto, pos_texto, 
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color_verde, 1, cv2.LINE_AA)
         except Exception as e:
-            print(f"No se pudo añadir texto de dimensiones: {e}")
+            print(f"Error en metodo_zoom: {e}")
+            plt.show()
 
-        #Recortar la región de la imagen normalizada (uint8)
-        region_recortada = corte_norm_uint8[y:y+h, x:x+w]
-
-        # Redimensionar (resize) el recorte
-        # (Usamos w*2 y h*2 como ejemplo de redimensión)
-        recorte_redimensionado = cv2.resize(region_recortada, (w * 2, h * 2), 
-                                          interpolation=cv2.INTER_LINEAR)
-
-        # Mostrar en dos subplots
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
-        
-        ax1.imshow(cv2.cvtColor(corte_bgr, cv2.COLOR_BGR2RGB)) # Convertir a RGB para Matplotlib
-        ax1.set_title("Original con ROI y Texto")
-        ax1.axis('off')
-        
-        ax2.imshow(recorte_redimensionado, cmap='gray')
-        ax2.set_title("Región Recortada y Redimensionada (Zoom)")
-        ax2.axis('off')
-        
-        plt.tight_layout()
-        plt.show()
-
-        # Guardar la imagen recortada y el plot
-        cv2.imwrite(nombre_archivo_recorte, recorte_redimensionado)
-        fig.savefig(nombre_archivo_plot)
-        print(f"Imagen recortada guardada como: {nombre_archivo_recorte}")
-        print(f"Plot de comparación guardado como: {nombre_archivo_plot}")
 
     def funcion_segmentacion(self, indice_corte, tipo_binarizacion_cv2, umbral, nombre_archivo_salida):
         """
         Aplica binarización (segmentación simple) a un corte.
 
         """
-        # Obtenemos y normalizamos el corte
-        corte = self.imagen_3d[indice_corte, :, :]
-        corte_uint8 = self._normalizar_a_uint8(corte)
+        try:
+            # Obtenemos y normalizamos el corte
+            corte = self.imagen_3d[indice_corte, :, :]
+            corte_uint8 = self._normalizar_a_uint8(corte)
 
-        # Aplicamos el umbral (binarización)
-        # cv2.threshold devuelve el valor del umbral usado y la imagen binarizada
-        # Usamos un umbral fijo (ej. 127) o podríamos usar cv2.THRESH_OTSU
-        valor_umbral, img_binarizada = cv2.threshold(
-            corte_uint8, 
-            umbral, # Valor del umbral
-            255,    # Valor máximo (para píxeles que superan el umbral)
-            tipo_binarizacion_cv2 # Tipo de binarización
-        )
+            # Aplicamos el umbral (binarización)
+            # cv2.threshold devuelve el valor del umbral usado y la imagen binarizada
+            # Usamos un umbral fijo (ej. 127) o podríamos usar cv2.THRESH_OTSU
+            valor_umbral, img_binarizada = cv2.threshold(
+                corte_uint8, 
+                umbral, # Valor del umbral
+                255,    # Valor máximo (para píxeles que superan el umbral)
+                tipo_binarizacion_cv2 # Tipo de binarización
+            )
 
-        # Mostramos la imagen resultante
-        plt.figure(figsize=(8, 8))
-        plt.imshow(img_binarizada, cmap='gray')
-        plt.title(f"Resultado de Binarización (Tipo: {tipo_binarizacion_cv2})")
-        plt.axis('off')
-        plt.show()
+            # Mostramos la imagen resultante
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.imshow(img_binarizada, cmap='gray')
+            ax.set_title(f"Resultado de Binarización (Tipo: {tipo_binarizacion_cv2})")
+            ax.axis('off')
+            
+            #guardamos
+            
+            cv2.imwrite(nombre_archivo_salida, img_binarizada)
+            fig.savefig(f"plot_{nombre_archivo_salida}")
+            print(f"Imagen binarizada guardada como: {nombre_archivo_salida}")
+            print(f"Plot de binarización guardado como: plot_{nombre_archivo_salida}")
+            
+            plt.show()
 
-        #guardamos
+            return img_binarizada
         
-        cv2.imwrite(nombre_archivo_salida, img_binarizada)
-        fig.savefig(f"plot_{nombre_archivo_salida}")
-        print(f"Imagen binarizada guardada como: {nombre_archivo_salida}")
-        print(f"Plot de binarización guardado como: plot_{nombre_archivo_salida}")
+        except Exception as e:
+            print(f"Error en funcion_segmentacion: {e}")
+            plt.show()
+            return None
 
-        return img_binarizada
 
-    def transformacion_morfologica(self, indice_corte, tamano_kernel, operacion_cv2_flag, nombre_archivo_salida):
+    def transformacion_morfologica(self, indice_corte, tamano_kernel, operacion_cv2_func, nombre_archivo_salida):
+        """
+        Aplica una transformación morfológica (Erosión, Dilatación, etc.)
+        'operacion_cv2' debe ser una función de OpenCV,
+        ej: cv2.erode, cv2.dilate
+        """
+        # Obtenemos y normalizamos el corte 
+        corte_uint8 = self._normalizar_a_uint8(self.imagen_3d[indice_corte, :, :])
+        #el fokin kernel
+        kernel = np.ones((tamano_kernel, tamano_kernel), np.uint8)
+
+
+        # Aplicamos la operación morfológica
+        # La 'operacion_cv2' se pasa como un argumento de función
+        # ej: operacion_cv2 = cv2.erode
+        try:
+            img_resultante = operacion_cv2_func(corte_uint8, kernel, iterations=1)
+            
+            # Mostramos y guardamos la imagen resultante 
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.imshow(img_resultante, cmap='gray')
+            ax.set_title(f"Transformación Morfológica (Kernel: {tamano_kernel}x{tamano_kernel})")
+            ax.axis('off')
+           
+            
+            # Guardamos la imagen
+            cv2.imwrite(nombre_archivo_salida, img_resultante)
+            fig.savefig(f"plot_{nombre_archivo_salida}")
+            print(f"Imagen morfológica guardada como: {nombre_archivo_salida}")
+            print(f"Plot morfológico guardado como: plot_{nombre_archivo_salida}")
+            
+            plt.show()
+
+        except Exception as e:
+            print(f"Error al aplicar la operación morfológica: {e}")
+            plt.show()
+
+    def transformacion_morfologica_ex(self, indice_corte, tamano_kernel, operacion_cv2_flag, nombre_archivo_salida):
         """
         Aplica una transformación morfológica (Erosión, Dilatación, etc.)
         'operacion_cv2' debe ser una función de OpenCV,
@@ -356,20 +410,22 @@ class Estudiolmaginologico:
             img_resultante = cv2.morphologyEx(corte_uint8, operacion_cv2_flag, kernel)
             
             # Mostramos y guardamos la imagen resultante 
-            plt.figure(figsize=(8, 8))
-            plt.imshow(img_resultante, cmap='gray')
-            plt.title(f"Transformación Morfológica (Kernel: {tamano_kernel}x{tamano_kernel})")
-            plt.axis('off')
-            plt.show()
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.imshow(img_resultante, cmap='gray')
+            ax.set_title(f"Transformación Morfológica (Kernel: {tamano_kernel}x{tamano_kernel})")
+            ax.axis('off')
+           
             
             # Guardamos la imagen
             cv2.imwrite(nombre_archivo_salida, img_resultante)
             fig.savefig(f"plot_{nombre_archivo_salida}")
             print(f"Imagen morfológica guardada como: {nombre_archivo_salida}")
             print(f"Plot morfológico guardado como: plot_{nombre_archivo_salida}")
+            plt.show()
 
         except Exception as e:
             print(f"Error al aplicar la operación morfológica: {e}")
+            plt.show()
 
 
 
@@ -385,6 +441,23 @@ class SistemaGestionDICOM:
         los objetos Estudiolmaginologico.
         """
         self.estudios_cargados = {} # Reemplaza la variable global
+    
+    def _validar_nombre_guardado(self, nombre_usuario, extension_default=".png"):
+            """
+            Helper privado para asegurar que un nombre de archivo
+            tenga una extensión válida para OpenCV/Matplotlib.
+            """
+            extensiones_validas = ('.png', '.jpg', '.jpeg', '.bmp', '.tif', '.tiff')
+            
+            if nombre_usuario.lower().endswith(extensiones_validas):
+                # El nombre de archivo ya es válido
+                return nombre_usuario
+            else:
+                # El nombre no tiene extensión o tiene una inválida.
+                # Añadimos la extensión por defecto.
+                nombre_corregido = nombre_usuario + extension_default
+                print(f"Advertencia: El nombre '{nombre_usuario}' no tiene extensión válida. Se guardará como '{nombre_corregido}'.")
+                return nombre_corregido
 
     def mostrar_menu(self):
         print("\n" + "="*40)
@@ -494,15 +567,18 @@ class SistemaGestionDICOM:
             ax3.set_title("Corte Coronal"); ax3.axis('off')
             
             plt.tight_layout()
-            plt.show()
+            
 
             # --- NUEVA FUNCIÓN DE GUARDADO ---
             try:
-                nombre_salida = input("Ingrese nombre para guardar el plot (ej: cortes_3d.png): ")
+                nombre_salida_in = input("Ingrese nombre para guardar el plot (ej: cortes_3d.png): ")
+                nombre_salida = self._validar_nombre_guardado(nombre_salida_in)
                 fig.savefig(nombre_salida)
                 print(f"Plot de cortes 3D guardado como: {nombre_salida}")
             except Exception as e:
                 print(f"No se pudo guardar el plot: {e}")
+            
+            plt.show()
 
     def aplicar_zoom(self):
         """
@@ -523,10 +599,12 @@ class SistemaGestionDICOM:
             w = int(input("Ingrese Ancho (W) del recorte: ")); h = int(input("Ingrese Alto (H) del recorte: "))
             
             # --- NUEVA FUNCIÓN DE GUARDADO ---
-            nombre_recorte = input("Nombre del archivo para la imagen recortada (ej: zoom.png): ")
-            nombre_plot = input("Nombre del archivo para el plot de comparación (ej: comparacion_zoom.png): ")
-
-            estudio_seleccionado.metodo_zoom(idx, x, y, w, h, nombre_recorte, nombre_plot)
+            nombre_recorte_in = input("Nombre del archivo para la imagen recortada (ej: zoom): ")
+            nombre_plot_in = input("Nombre del archivo para el plot de comparación (ej: comparacion_zoom): ")
+            nombre_recorte_valido = self._validar_nombre_guardado(nombre_recorte_in)
+            nombre_plot_valido = self._validar_nombre_guardado(nombre_plot_in)
+            
+            estudio_seleccionado.metodo_zoom(idx, x, y, w, h, nombre_recorte_valido, nombre_plot_valido)
 
         except ValueError:
             print("[Error] Entrada inválida. Todos los valores deben ser números enteros.")
@@ -564,10 +642,11 @@ class SistemaGestionDICOM:
 
             umbral = int(input("Ingrese el valor del umbral (0-255, ej: 127): "))
             
-            # --- NUEVA FUNCIÓN DE GUARDADO ---
-            nombre_salida = input("Nombre del archivo para guardar la imagen segmentada (ej: binaria.png): ")
+            nombre_salida_in = input("Nombre del archivo para guardar la imagen segmentada (ej: binaria): ")
             
-            estudio_seleccionado.funcion_segmentacion(idx, bandera_seleccionada, umbral, nombre_salida)
+            nombre_salida_valido = self._validar_nombre_guardado(nombre_salida_in)
+            
+            estudio_seleccionado.funcion_segmentacion(idx, bandera_seleccionada, umbral, nombre_salida_valido)
             
         except ValueError:
             print("[Error] Entrada inválida. Debe ser un número entero.")
@@ -594,7 +673,8 @@ class SistemaGestionDICOM:
             opcion = input("Seleccione la operación (1-4): ")
             
             # --- NUEVA FUNCIÓN DE GUARDADO ---
-            nombre_salida = input("Nombre del archivo para guardar la imagen morfológica (ej: erosion.png): ")
+            nombre_salida_in = input("Nombre del archivo para guardar la imagen morfológica (ej: erosion.png): ")
+            nombre_salida = self._validar_nombre_guardado(nombre_salida_in)
             
             if opcion == "1":
                 estudio_seleccionado.transformacion_morfologica(idx, tam_kernel, cv2.erode, nombre_salida)
