@@ -237,24 +237,24 @@ class Estudiolmaginologico:
         Recorta, redimensiona y dibuja un cuadro sobre un corte.
         """
 
-        # 1. Obtenemos el corte original (slice) desde el volumen 3D
+        # Obtenemos el corte original (slice) desde el volumen 3D
         corte_original = self.imagen_3d[indice_corte, :, :]
 
-        # 2. Normalizamos a uint8 
+        # Normalizamos a uint8 
         corte_norm_uint8 = self._normalizar_a_uint8(corte_original)
 
-        # 3. Convertimos a BGR para poder dibujar en color 
+        # Convertimos a BGR para poder dibujar en color 
         # (OpenCV espera 3 canales de color para dibujar en color)
         corte_bgr = cv2.cvtColor(corte_norm_uint8, cv2.COLOR_GRAY2BGR)
 
-        # 4. Dibujar el cuadro (ROI - Región de Interés) 
+        # Dibujar el cuadro (ROI - Región de Interés) 
         pt1 = (x, y) # Coordenada superior izquierda
         pt2 = (x + w, y + h) # Coordenada inferior derecha
         color_verde = (0, 255, 0)
         grosor = 2
         cv2.rectangle(corte_bgr, pt1, pt2, color_verde, grosor)
 
-        # 5. Añadir texto con dimensiones en milímetros (mm) 
+        # Añadir texto con dimensiones en milímetros (mm) 
         try:
             # Obtenemos el espaciado de píxeles (mm)
             meta = self.manager_dicom.slices_dicom[indice_corte]
@@ -272,17 +272,17 @@ class Estudiolmaginologico:
         except Exception as e:
             print(f"No se pudo añadir texto de dimensiones: {e}")
 
-        # 6. Recortar la región de la imagen normalizada (no de la BGR)
+        # Recortar la región de la imagen normalizada (no de la BGR)
         region_recortada = corte_norm_uint8[y:y+h, x:x+w]
 
-        # 7. Redimensionar (resize) el recorte 
+        # Redimensionar (resize) el recorte 
         # Vamos a duplicar su tamaño como ejemplo de redimensionamiento
         nuevo_ancho = w * 2
         nueva_altura = h * 2
         recorte_redimensionado = cv2.resize(region_recortada, (nuevo_ancho, nueva_altura), 
                                           interpolation=cv2.INTER_LINEAR)
 
-        # 8. Mostrar en dos subplots 
+        # Mostrar en dos subplots 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 6))
         
         ax1.imshow(corte_bgr)
@@ -296,7 +296,7 @@ class Estudiolmaginologico:
         plt.tight_layout()
         plt.show()
 
-        # 9. Guardar la imagen recortada
+        # Guardar la imagen recortada
         cv2.imwrite(nombre_archivo_salida, recorte_redimensionado)
         print(f"Imagen recortada guardada como: {nombre_archivo_salida}")
 
@@ -305,11 +305,11 @@ class Estudiolmaginologico:
         Aplica binarización (segmentación simple) a un corte.
 
         """
-        # 1. Obtenemos y normalizamos el corte
+        # Obtenemos y normalizamos el corte
         corte = self.imagen_3d[indice_corte, :, :]
         corte_uint8 = self._normalizar_a_uint8(corte)
 
-        # 2. Aplicamos el umbral (binarización)
+        # Aplicamos el umbral (binarización)
         # cv2.threshold devuelve el valor del umbral usado y la imagen binarizada
         # Usamos un umbral fijo (ej. 127) o podríamos usar cv2.THRESH_OTSU
         valor_umbral, img_binarizada = cv2.threshold(
@@ -319,7 +319,7 @@ class Estudiolmaginologico:
             tipo_binarizacion_cv2 # Tipo de binarización
         )
 
-        # 3. Mostramos la imagen resultante
+        # Mostramos la imagen resultante
         plt.figure(figsize=(8, 8))
         plt.imshow(img_binarizada, cmap='gray')
         plt.title(f"Resultado de Binarización (Tipo: {tipo_binarizacion_cv2})")
@@ -334,21 +334,21 @@ class Estudiolmaginologico:
         'operacion_cv2' debe ser una función de OpenCV,
         ej: cv2.erode, cv2.dilate
         """
-        # 1. Obtenemos y normalizamos el corte 
+        # Obtenemos y normalizamos el corte 
         corte = self.imagen_3d[indice_corte, :, :]
         corte_uint8 = self._normalizar_a_uint8(corte)
 
-        # 2. Creamos el 'kernel' 
+        # Creamos el 'kernel' 
         # Es una matriz cuadrada de 'unos' del tamaño dado
         kernel = np.ones((tamano_kernel, tamano_kernel), np.uint8)
 
-        # 3. Aplicamos la operación morfológica
+        # Aplicamos la operación morfológica
         # La 'operacion_cv2' se pasa como un argumento de función
         # ej: operacion_cv2 = cv2.erode
         try:
             img_resultante = operacion_cv2(corte_uint8, kernel, iterations=1)
             
-            # 4. Mostramos y guardamos la imagen resultante 
+            # Mostramos y guardamos la imagen resultante 
             plt.figure(figsize=(8, 8))
             plt.imshow(img_resultante, cmap='gray')
             plt.title(f"Transformación Morfológica (Kernel: {tamano_kernel}x{tamano_kernel})")

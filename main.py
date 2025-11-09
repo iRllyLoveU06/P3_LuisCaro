@@ -88,3 +88,34 @@ def cargar_nuevo_estudio():
         
     except Exception as e:
         print(f"[Error] Ocurrió un problema al cargar el estudio: {e}")
+
+
+def mostrar_cortes_3d():
+    """
+    Opción 2: Muestra los 3 cortes principales (T, S, C).
+    """
+    estudio_seleccionado = seleccionar_estudio()
+    if estudio_seleccionado is None:
+        return
+
+    # Obtenemos los cortes desde el manager (que está dentro del estudio)
+    trans, sag, cor = estudio_seleccionado.manager_dicom.obtener_cortes_principales()
+
+    if trans is not None:
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(18, 6)) #consampiramos los lienzos 
+        
+        ax1.imshow(trans, cmap='gray', aspect='auto')
+        ax1.set_title("Corte Transversal (Axial)")
+        ax1.axis('off')
+        
+        ax2.imshow(sag.T, cmap='gray', aspect='auto') # Usamos .T (Transpuesta) para orientación correcta
+        ax2.set_title("Corte Sagital")
+        ax2.axis('off')
+
+        ax3.imshow(cor.T, cmap='gray', aspect='auto') # Usamos .T (Transpuesta) para orientación correcta
+        ax3.set_title("Corte Coronal")
+        ax3.axis('off')
+        
+        plt.tight_layout()
+        plt.show()
+
